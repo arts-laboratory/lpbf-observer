@@ -1,6 +1,7 @@
 import os 
 from pathlib import Path
 import cv2
+import ffmpeg
 import numpy as np
 
 
@@ -28,9 +29,12 @@ def buildFilePaths(path):
         
     return filePath
 
+def converttoRAW(inputFile, outputFile):
+    ffmpeg.input(inputFile).output(outputFile, format="rawvideo", pix_fmt="yuv420p").run()
+
 def captureVideo(path):
     capture = cv2.VideoCapture(path)
-    capture.set(cv2.CAP_PROP_CONVERT_RGB, -1)
+    capture.set(cv2.CAP_PROP_FORMAT, -1)
 
     return capture
 
@@ -45,21 +49,28 @@ def makeVideo(capture, path, name, cropped, x, y, w, h):
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     colorWriter = cv2.VideoWriter(str(frameFolder / f"{name}.mp4"), fourcc, fps, (width, height), isColor=True)
     croppedWriter = cv2.VideoWriter(str(frameFolder / f"{name}Cropped.mp4"), fourcc, fps, (w, h), isColor=True)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
 
     while True:
         ret, frame = readFrame(capture)
         if not ret:
             break
         
-        frame = frame[:, :, 0].astype(np.uint16) | (frame[:, :, 1].astype(np.uint16) << 8)
-        frame_roi = frame[1:, :]
+        #View frame as int16 elements, and reshape to cols x rows (each pixel is signed 16 bits)
+        frame = frame.view(np.int16).reshape(height, width)
 
-        normalized = cv2.normalize(frame_roi, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        colored = cv2.applyColorMap(normalized, cv2.COLORMAP_INFERNO)
-        cropped = cropROI(colored, x, y, w, h)
-        
+        # It looks like the first line contains some data (not pixels).
+        # data_line = frame[0, :]
+        frame_roi = frame[1:, :]  # Ignore the first row.
+
+        # Normalizing frame to range [0, 255], and get the result as type uint8 (this part is used just for making the data visible).
+        normed = cv2.normalize(frame_roi, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        cl1 = clahe.apply(normed)
+        nor = cv2.cvtColor(cl1, cv2.COLOR_GRAY2BGR)
+        color = cv2.applyColorMap(nor, cv2.COLORMAP_INFERNO)  # Apply a color map to the normalized frame for better visualization
+        cropped = cropROI(color, x, y, w, h)
         croppedWriter.write(cropped)
-        colorWriter.write(colored)
+        colorWriter.write(color)
         count += 1
     
     colorWriter.release()
@@ -84,3 +95,21 @@ def cropROI(frame, cx, cy, w, h):
     x = cx - w // 2
     y = cy - h // 2
     return frame[y:y+h, x:x+w]
+
+def saveFrameCSV(capture, outputPath, name, frameNumber=0):
+    """Save a specific frame as CSV of raw int16 values"""
+    capture.set(cv2.CAP_PROP_POS_FRAMES, frameNumber)
+    ret, frame = capture.read()
+    if not ret:
+        print("Could not read frame")
+        return
+    
+    frame = frame.view(np.int16).reshape(
+        int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+    )
+    frame = frame[1:, :]  # remove metadata line
+    
+    outPath = str(Path(outputPath) / f"{Path(name).stem}_frame{frameNumber}.csv")
+    np.savetxt(outPath, frame, delimiter=",", fmt="%d")
+    print(f"Saved: {outPath}")
