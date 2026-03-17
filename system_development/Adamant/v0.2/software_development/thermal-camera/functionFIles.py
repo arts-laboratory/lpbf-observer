@@ -1,7 +1,6 @@
 import os 
 from pathlib import Path
 import cv2
-import ffmpeg
 import numpy as np
 
 
@@ -28,9 +27,6 @@ def buildFilePaths(path):
         filePath.append(os.path.join(path, files))
         
     return filePath
-
-def converttoRAW(inputFile, outputFile):
-    ffmpeg.input(inputFile).output(outputFile, format="rawvideo", pix_fmt="yuv420p").run()
 
 def captureVideo(path):
     capture = cv2.VideoCapture(path)
@@ -96,7 +92,7 @@ def cropROI(frame, cx, cy, w, h):
     y = cy - h // 2
     return frame[y:y+h, x:x+w]
 
-def saveFrameCSV(capture, outputPath, name, frameNumber=0, calibrationFile=None):
+def saveFrameCSV(capture, outputPath, name, frameNumber=0, calibrationFile1=None, calibrationFile2=None, calibrationFile3=None):
     """Save a specific frame as CSV of raw int16 values"""
     capture.set(cv2.CAP_PROP_POS_FRAMES, frameNumber)
     ret, frame = capture.read()
@@ -109,7 +105,7 @@ def saveFrameCSV(capture, outputPath, name, frameNumber=0, calibrationFile=None)
         int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
     )
     frame = frame[1:, :]  # remove metadata line
-    frame = convertToTemperature(frame, calibrationFile)
+    frame = convertToTemperatureExtended(frame, calibrationFile1, calibrationFile2, calibrationFile3)
     
     outPath = str(Path(outputPath) / f"{Path(name).stem}_frame{frameNumber}.csv")
     np.savetxt(outPath, frame, delimiter=",", fmt="%d")
@@ -131,3 +127,21 @@ def convertToTemperature(frame,calibrationFile):
     """Convert raw frame values to temperature using interpolation"""
     floats, temperatures = readCalibrationFile(calibrationFile)
     return interpolateTemp(frame, floats, temperatures)
+
+def convertToTemperatureExtended(frame, calibration20_100, calibrationFile0_250, calibrationFile150_900):
+    floats20_100, temps20_100 = readCalibrationFile(calibration20_100)
+    threshold20_100 = -105
+    floats0_250, temps0_250 = readCalibrationFile(calibrationFile0_250)
+    threshhold0_250 = 2644
+    floats150_900, temps150_900 = readCalibrationFile(calibrationFile150_900)
+    threshold150_900 = 150
+
+    interp20_100 = interpolateTemp(frame, floats20_100, temps20_100)
+    interp0_250 = interpolateTemp(frame, floats0_250, temps0_250)
+    interp150_900 = interpolateTemp(frame, floats150_900, temps150_900)
+
+    frame = np.select(
+                    [frame <  threshold20_100, frame < threshhold0_250],
+                    [interp20_100, interp0_250], default=interp150_900)
+
+    return frame 
