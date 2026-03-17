@@ -96,7 +96,7 @@ def cropROI(frame, cx, cy, w, h):
     y = cy - h // 2
     return frame[y:y+h, x:x+w]
 
-def saveFrameCSV(capture, outputPath, name, frameNumber=0):
+def saveFrameCSV(capture, outputPath, name, frameNumber=0, calibrationFile=None):
     """Save a specific frame as CSV of raw int16 values"""
     capture.set(cv2.CAP_PROP_POS_FRAMES, frameNumber)
     ret, frame = capture.read()
@@ -109,7 +109,25 @@ def saveFrameCSV(capture, outputPath, name, frameNumber=0):
         int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
     )
     frame = frame[1:, :]  # remove metadata line
+    frame = convertToTemperature(frame, calibrationFile)
     
     outPath = str(Path(outputPath) / f"{Path(name).stem}_frame{frameNumber}.csv")
     np.savetxt(outPath, frame, delimiter=",", fmt="%d")
     print(f"Saved: {outPath}")
+    
+def readCalibrationFile(calibrationFile):
+    calibrationData = np.loadtxt(calibrationFile)
+    
+    floats = calibrationData[:, 0].astype(int)
+    temperatures = calibrationData[:, 1]
+
+    return floats, temperatures
+
+def interpolateTemp(values, floats, temperatures):
+    """Interpolate temperature values based on the calibration data"""
+    return np.interp(values, floats, temperatures)
+
+def convertToTemperature(frame,calibrationFile):
+    """Convert raw frame values to temperature using interpolation"""
+    floats, temperatures = readCalibrationFile(calibrationFile)
+    return interpolateTemp(frame, floats, temperatures)
