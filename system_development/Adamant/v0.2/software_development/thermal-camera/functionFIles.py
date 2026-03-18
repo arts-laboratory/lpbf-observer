@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import cv2
 import numpy as np
+import re
 
 
 def clear_terminal():
@@ -112,7 +113,17 @@ def saveFrameCSV(capture, outputPath, name, frameNumber=0, calibrationFile1=None
     print(f"Saved: {outPath}")
     
 def readCalibrationFile(calibrationFile):
-    calibrationData = np.loadtxt(calibrationFile)
+    rows = []
+    with open(calibrationFile, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            parts = re.split(r'\s+|(?<=\d)(?=-)', line)
+            if len(parts) == 2:
+                rows.append((float(parts[0]), float(parts[1])))
+    
+    calibrationData = np.array(rows)
     
     floats = calibrationData[:, 0].astype(int)
     temperatures = calibrationData[:, 1]
@@ -130,18 +141,15 @@ def convertToTemperature(frame,calibrationFile):
 
 def convertToTemperatureExtended(frame, calibration20_100, calibrationFile0_250, calibrationFile150_900):
     floats20_100, temps20_100 = readCalibrationFile(calibration20_100)
-    threshold20_100 = -105
     floats0_250, temps0_250 = readCalibrationFile(calibrationFile0_250)
-    threshhold0_250 = 2644
     floats150_900, temps150_900 = readCalibrationFile(calibrationFile150_900)
-    threshold150_900 = 150
 
     interp20_100 = interpolateTemp(frame, floats20_100, temps20_100)
     interp0_250 = interpolateTemp(frame, floats0_250, temps0_250)
     interp150_900 = interpolateTemp(frame, floats150_900, temps150_900)
 
-    frame = np.select(
-                    [frame <  threshold20_100, frame < threshhold0_250],
-                    [interp20_100, interp0_250], default=interp150_900)
-
-    return frame 
+    result = np.select(
+        [frame < -500, (frame >= -500) & (frame < 300), frame >= 300],
+        [interp20_100, interp0_250, interp150_900]
+    )
+    return result 
