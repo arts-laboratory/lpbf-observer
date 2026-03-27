@@ -3,7 +3,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 import re
+import time
 
+#temp scale shit
+low = 20
+high = 800
 
 def clear_terminal():
     # Check the operating system
@@ -40,37 +44,42 @@ def readFrame(capture):
 
     return ret, frame 
     
-def makeVideo(capture, path, name, cropped, x, y, w, h):
+def makeVideo(capture, path, name, do_crop, x, y, w, h, calibration20_100, calibrationFile0_250, calibrationFile150_900):
+    start = time.time()
+
     frameFolder = folderFind(path, name)
     count, fps, width, height = getVideoInfo(capture)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    colorWriter = cv2.VideoWriter(str(frameFolder / f"{name}.mp4"), fourcc, fps, (width, height), isColor=True)
+    colorWriter = cv2.VideoWriter(str(frameFolder / f"{name}.mp4"), fourcc, fps, (width, height - 1), isColor=True)
     croppedWriter = cv2.VideoWriter(str(frameFolder / f"{name}Cropped.mp4"), fourcc, fps, (w, h), isColor=True)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
 
     while True:
         ret, frame = readFrame(capture)
         if not ret:
             break
-        
-        #View frame as int16 elements, and reshape to cols x rows (each pixel is signed 16 bits)
+
         frame = frame.view(np.int16).reshape(height, width)
+        frame_roi = frame[1:, :]  # Strip metadata row
 
-        # It looks like the first line contains some data (not pixels).
-        # data_line = frame[0, :]
-        frame_roi = frame[1:, :]  # Ignore the first row.
+        # Convert raw values to temperature using combined calibration
+        temp = convertToTemperatureExtended(frame_roi, calibration20_100, calibrationFile0_250, calibrationFile150_900)
 
-        # Normalizing frame to range [0, 255], and get the result as type uint8 (this part is used just for making the data visible).
-        normed = cv2.normalize(frame_roi, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-        cl1 = clahe.apply(normed)
-        nor = cv2.cvtColor(cl1, cv2.COLOR_GRAY2BGR)
-        color = cv2.applyColorMap(nor, cv2.COLORMAP_INFERNO)  # Apply a color map to the normalized frame for better visualization
+        # Normalize temperature to [0, 255] for visualization
+        scaled = np.clip(temp, low, high)
+        scaled = ((scaled - low) / (high - low) * 255).astype(np.uint8)
+        nor = cv2.cvtColor(scaled, cv2.COLOR_GRAY2BGR)
+        color = cv2.applyColorMap(nor, cv2.COLORMAP_INFERNO)
+
         cropped = cropROI(color, x, y, w, h)
         croppedWriter.write(cropped)
         colorWriter.write(color)
         count += 1
-    
+
     colorWriter.release()
+    croppedWriter.release()
+    end = time.time()
+
+    print(f"Processed {count} frames in {end - start:.2f} seconds.")
     print("Done!")
 
     
@@ -148,8 +157,6 @@ def convertToTemperatureExtended(frame, calibration20_100, calibrationFile0_250,
     interp0_250 = interpolateTemp(frame, floats0_250, temps0_250)
     interp150_900 = interpolateTemp(frame, floats150_900, temps150_900)
 
-    result = np.select(
-        [frame < -500, (frame >= -500) & (frame < 300), frame >= 300],
-        [interp20_100, interp0_250, interp150_900]
-    )
+    result = np.maximum.reduce([interp20_100, interp0_250, interp150_900])
+
     return result 
