@@ -16,7 +16,7 @@ raviFiles = bruh.buildFilePaths(inputPath)
 for i, file in enumerate(raviFileNames):
     print(f"{i}: {file}")
     capture = bruh.captureVideo(raviFiles[i])
-    bruh.makeVideo(capture, outputPath, raviFileNames[i], True, 188, 90, 125, 125, calibrationFile1, calibrationFile2, calibrationFile3)
-    bruh.saveFrameCSV(capture, outputPathCSV, raviFileNames[i], 314, calibrationFile1, calibrationFile2, calibrationFile3)
+    frame = bruh.makeVideo(capture, outputPath, raviFileNames[i], True, 188, 90, 125, 125, calibrationFile1, calibrationFile2, calibrationFile3)
+    bruh.saveFrameCSV(capture, outputPathCSV, raviFileNames[i], frame, calibrationFile1, calibrationFile2, calibrationFile3)
 
 print("FINALLY DONE!")

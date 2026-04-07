@@ -52,6 +52,9 @@ def makeVideo(capture, path, name, do_crop, x, y, w, h, calibration20_100, calib
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     colorWriter = cv2.VideoWriter(str(frameFolder / f"{name}.mp4"), fourcc, fps, (width, height - 1), isColor=True)
     croppedWriter = cv2.VideoWriter(str(frameFolder / f"{name}Cropped.mp4"), fourcc, fps, (w, h), isColor=True)
+    maxMean = 0
+    frameIndex = 0
+
 
     while True:
         ret, frame = readFrame(capture)
@@ -63,6 +66,11 @@ def makeVideo(capture, path, name, do_crop, x, y, w, h, calibration20_100, calib
 
         # Convert raw values to temperature using combined calibration
         temp = convertToTemperatureExtended(frame_roi, calibration20_100, calibrationFile0_250, calibrationFile150_900)
+        
+        mean_temp = np.mean(temp)
+        if mean_temp > maxMean:
+            maxMean = mean_temp
+            frame = frameIndex
 
         # Normalize temperature to [0, 255] for visualization
         scaled = np.clip(temp, low, high)
@@ -73,16 +81,18 @@ def makeVideo(capture, path, name, do_crop, x, y, w, h, calibration20_100, calib
         cropped = cropROI(color, x, y, w, h)
         croppedWriter.write(cropped)
         colorWriter.write(color)
-        count += 1
+        frameIndex += 1
 
     colorWriter.release()
     croppedWriter.release()
     end = time.time()
 
     print(f"Processed {count} frames in {end - start:.2f} seconds.")
+    print(f"Max mean temperature: {maxMean:.2f} at frame {frame}")
     print("Done!")
 
-    
+    return frame
+
 def folderFind(path, Name):
     folder = Path(path) / Name
     folder.mkdir(parents=True, exist_ok=True)
@@ -119,7 +129,7 @@ def saveFrameCSV(capture, outputPath, name, frameNumber=0, calibrationFile1=None
     
     outPath = str(Path(outputPath) / f"{Path(name).stem}_frame{frameNumber}.csv")
     np.savetxt(outPath, frame, delimiter=",", fmt="%d")
-    print(f"Saved: {outPath}")
+    print(f"Saved: {outPath} as {Path(name).stem}_frame{frameNumber}.csv")
     
 def readCalibrationFile(calibrationFile):
     rows = []
