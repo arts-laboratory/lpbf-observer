@@ -7,7 +7,7 @@ import time
 
 #temp scale shit
 low = 20
-high = 800
+high = 900
 
 def clear_terminal():
     # Check the operating system
@@ -47,51 +47,63 @@ def readFrame(capture):
 def makeVideo(capture, path, name, do_crop, x, y, w, h, calibration20_100, calibrationFile0_250, calibrationFile150_900):
     start = time.time()
 
+    # Read calibration files ONCE
+    floats20_100, temps20_100 = readCalibrationFile(calibration20_100)
+    floats0_250, temps0_250 = readCalibrationFile(calibrationFile0_250)
+    floats150_900, temps150_900 = readCalibrationFile(calibrationFile150_900)
+
     frameFolder = folderFind(path, name)
-    count, fps, width, height = getVideoInfo(capture)
+    total_frames, fps, width, height = getVideoInfo(capture)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     colorWriter = cv2.VideoWriter(str(frameFolder / f"{name}.mp4"), fourcc, fps, (width, height - 1), isColor=True)
     croppedWriter = cv2.VideoWriter(str(frameFolder / f"{name}Cropped.mp4"), fourcc, fps, (w, h), isColor=True)
-    maxMean = 0
+
+    maxMax = -np.inf  # handles negative temps correctly
+    maxMaxIndex = None
     frameIndex = 0
 
-
     while True:
-        ret, frame = readFrame(capture)
+        ret, raw_frame = readFrame(capture)
         if not ret:
             break
 
-        frame = frame.view(np.int16).reshape(height, width)
-        frame_roi = frame[1:, :]  # Strip metadata row
+        raw_frame = raw_frame.view(np.int16).reshape(height, width)
+        frame_roi = raw_frame[1:, :]
 
-        # Convert raw values to temperature using combined calibration
-        temp = convertToTemperatureExtended(frame_roi, calibration20_100, calibrationFile0_250, calibrationFile150_900)
-        
-        mean_temp = np.mean(temp)
-        if mean_temp > maxMean:
-            maxMean = mean_temp
-            frame = frameIndex
+        temp = convertToTemperatureExtended(
+            frame_roi,
+            floats20_100, temps20_100,
+            floats0_250, temps0_250,
+            floats150_900, temps150_900
+        )
 
-        # Normalize temperature to [0, 255] for visualization
         scaled = np.clip(temp, low, high)
         scaled = ((scaled - low) / (high - low) * 255).astype(np.uint8)
-        nor = cv2.cvtColor(scaled, cv2.COLOR_GRAY2BGR)
-        color = cv2.applyColorMap(nor, cv2.COLORMAP_INFERNO)
+        color = cv2.applyColorMap(cv2.cvtColor(scaled, cv2.COLOR_GRAY2BGR), cv2.COLORMAP_INFERNO)
+        
+        framesFolder = Path(path) / "Frames"
+        framesFolder.mkdir(parents=True, exist_ok=True)
 
-        cropped = cropROI(color, x, y, w, h)
-        croppedWriter.write(cropped)
+        
+        max_temp = np.max(temp)
+        if max_temp > maxMax:
+            maxMax = max_temp
+            maxMaxIndex = frameIndex
+            cv2.imwrite(str(framesFolder / f"{name}PeakFrame{maxMaxIndex}.png"), cropROI(color, x, y, w, h))
+                    
         colorWriter.write(color)
+        croppedWriter.write(cropROI(color, x, y, w, h))
         frameIndex += 1
 
     colorWriter.release()
     croppedWriter.release()
     end = time.time()
 
-    print(f"Processed {count} frames in {end - start:.2f} seconds.")
-    print(f"Max mean temperature: {maxMean:.2f} at frame {frame}")
+    print(f"Processed {frameIndex} frames in {end - start:.2f} seconds.")
+    print(f"Max temperature: {maxMax:.2f} at frame {maxMaxIndex}")
     print("Done!")
 
-    return frame
+    return maxMaxIndex
 
 def folderFind(path, Name):
     folder = Path(path) / Name
@@ -113,22 +125,28 @@ def cropROI(frame, cx, cy, w, h):
     return frame[y:y+h, x:x+w]
 
 def saveFrameCSV(capture, outputPath, name, frameNumber=0, calibrationFile1=None, calibrationFile2=None, calibrationFile3=None):
-    """Save a specific frame as CSV of raw int16 values"""
+    """Save a specific frame as CSV of temperature values"""
+    
+    # Read calibration once
+    floats20_100, temps20_100 = readCalibrationFile(calibrationFile1)
+    floats0_250, temps0_250 = readCalibrationFile(calibrationFile2)
+    floats150_900, temps150_900 = readCalibrationFile(calibrationFile3)
+
     capture.set(cv2.CAP_PROP_POS_FRAMES, frameNumber)
     ret, frame = capture.read()
     if not ret:
         print("Could not read frame")
         return
-    
+
     frame = frame.view(np.int16).reshape(
         int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
         int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
     )
-    frame = frame[1:, :]  # remove metadata line
-    frame = convertToTemperatureExtended(frame, calibrationFile1, calibrationFile2, calibrationFile3)
-    
+    frame = frame[1:, :]
+    frame = convertToTemperatureExtended(frame, floats20_100, temps20_100, floats0_250, temps0_250, floats150_900, temps150_900)
+
     outPath = str(Path(outputPath) / f"{Path(name).stem}_frame{frameNumber}.csv")
-    np.savetxt(outPath, frame, delimiter=",", fmt="%d")
+    np.savetxt(outPath, frame, delimiter=",", fmt="%.2f")  # also fixed fmt - %d drops decimals on temp data
     print(f"Saved: {outPath} as {Path(name).stem}_frame{frameNumber}.csv")
     
 def readCalibrationFile(calibrationFile):
@@ -158,15 +176,9 @@ def convertToTemperature(frame,calibrationFile):
     floats, temperatures = readCalibrationFile(calibrationFile)
     return interpolateTemp(frame, floats, temperatures)
 
-def convertToTemperatureExtended(frame, calibration20_100, calibrationFile0_250, calibrationFile150_900):
-    floats20_100, temps20_100 = readCalibrationFile(calibration20_100)
-    floats0_250, temps0_250 = readCalibrationFile(calibrationFile0_250)
-    floats150_900, temps150_900 = readCalibrationFile(calibrationFile150_900)
-
+def convertToTemperatureExtended(frame, floats20_100, temps20_100, floats0_250, temps0_250, floats150_900, temps150_900):
     interp20_100 = interpolateTemp(frame, floats20_100, temps20_100)
     interp0_250 = interpolateTemp(frame, floats0_250, temps0_250)
     interp150_900 = interpolateTemp(frame, floats150_900, temps150_900)
 
-    result = np.maximum.reduce([interp20_100, interp0_250, interp150_900])
-
-    return result 
+    return np.maximum.reduce([interp20_100, interp0_250, interp150_900])
