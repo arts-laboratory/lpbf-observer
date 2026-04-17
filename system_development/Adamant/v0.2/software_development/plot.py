@@ -52,7 +52,7 @@ for filepath in CSVFiles:
         "label": get_label(filepath, goodWelds, badWelds),
         "mean": float(np.mean(frame)),
         "median": float(np.median(frame)),
-        "std_dev": float(np.std(frame)),
+        "standard deviation": float(np.std(frame)),
         "min": float(np.min(frame)),
         "max": float(np.max(frame)),
         "range": float(np.max(frame) - np.min(frame)),
@@ -69,7 +69,7 @@ print(results_df)
 # Logarithmic 2D classification: page 87 in the textbook
 
 
-features = ["mean", "median", "std_dev", "min", "max", "range", "skewness", "kurtosis", "mean_masked"]
+features = ["mean", "median", "standard deviation", "min", "max", "range", "skewness", "kurtosis", "mean_masked"]
 
 os.makedirs(r"C:\Users\mayhe\OneDrive\Documents\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Plots", exist_ok=True)
 outputPath = r"C:\Users\mayhe\OneDrive\Documents\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Plots"
@@ -87,19 +87,37 @@ for feat1, feat2 in combinations(features, 2):
     plt.savefig(rf"{outputPath}\{feat1}_vs_{feat2}.svg")
     plt.close()
 
-featuresPearson = ["skewness", "kurtosis", "std_dev", "max"]
+featuresPearson = ["skewness", "kurtosis", "standard deviation", "max"]
 
 corr = results_df[featuresPearson].corr()
-plt.figure(figsize=(10, 8))
-sns.heatmap(corr, annot=True, fmt=".2f", cmap="viridis", center=0, 
-            annot_kws={"size": 22})
-plt.title("Pearson Correlation Matrix", fontsize=22)
+
+# Rename for display only, on a copy
+corr_display = corr.copy()
+corr_display.index = ["skewness", "kurtosis", "standard\ndeviation", "max"]
+corr_display.columns = ["skewness", "kurtosis", "standard\ndeviation", "max"]
+
+plt.figure(figsize=(4, 3.25))
+ax = sns.heatmap(
+    corr_display,  # <-- use display copy here
+    annot=True,
+    fmt=".2f",
+    cmap="viridis",
+    center=0,
+    vmin=-1,
+    vmax=1,
+    annot_kws={"size": 11}
+)
+
+colorbar = ax.collections[0].colorbar
+colorbar.set_ticks([-1, -0.75, -0.50, -0.25, 0, 0.25, 0.50, 0.75, 1.0])
+colorbar.set_label("Pearson Correlation", size=11)
+
 plt.tight_layout()
 plt.savefig(rf"{outputPath}\correlation_matrix.png", dpi=300)
 plt.savefig(rf"{outputPath}\correlation_matrix.svg")
 plt.close()
 
-featuresCorr = ["mean", "std_dev", "max", "skewness", "kurtosis"]
+featuresCorr = ["mean", "standard deviation", "max", "skewness", "kurtosis"]
 
 for feat in featuresCorr:
     plt.figure()
@@ -115,8 +133,8 @@ for feat in featuresCorr:
     plt.close()
 
 feature_pairs = [
-    ("std_dev", "skewness"),
-    ("std_dev", "max"),
+    ("standard deviation", "skewness"),
+    ("standard deviation", "max"),
     ("skewness", "kurtosis"),
 ]
 
