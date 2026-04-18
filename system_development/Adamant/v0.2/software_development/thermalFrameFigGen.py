@@ -36,22 +36,22 @@ rowN = 1 + 1.5 * n_rows
 fig = plt.figure(figsize=(colN, rowN))  # +1 for colorbar height
 
 gs = gridspec.GridSpec(
-    n_rows + 1, n_cols,
+    n_rows, n_cols + 1,   # add extra column
     figure=fig,
-    height_ratios=[.1] + [1] * n_rows,
-    hspace=0.05,   # ← very tight vertical spacing
-    wspace=0.02,   # ← very tight horizontal spacing
+    width_ratios=[1]*n_cols + [.75],  # thin column for colorbar
+    hspace=0.05,
+    wspace=0.15,
 )
 
 # ── Colorbar at top spanning all columns ──────────────────────────────────────
-ax_cb = fig.add_subplot(gs[0, :])
+ax_cb = fig.add_subplot(gs[:, -1])  # last column, all rows
 ax_cb.imshow(mpimg.imread(colorBarPath))
 ax_cb.axis("off")
 
 # ── Image grid ────────────────────────────────────────────────────────────────
 axes = []
 for i in range(n_rows * n_cols):
-    row = i // n_cols + 1  # +1 to skip colorbar row
+    row = i // n_cols  # +1 to skip colorbar row
     col = i % n_cols
     axes.append(fig.add_subplot(gs[row, col]))
 

@@ -138,7 +138,13 @@ feature_pairs = [
     ("skewness", "kurtosis"),
 ]
 
-fig, axes = plt.subplots(3, 1, figsize=(3, 7.5))
+fig, axes = plt.subplots(1, 3, figsize=(6.5, 2.25))
+
+feature_pair_labels = [
+    ("standard deviation", "skewness"),
+    ("standard deviation", "max"),
+    ("skewness", "kurtosis"),
+]
 
 for i, ((feat1, feat2), ax) in enumerate(zip(feature_pairs, axes)):
     x2 = results_df[[feat1, feat2]].values
@@ -160,22 +166,43 @@ for i, ((feat1, feat2), ax) in enumerate(zip(feature_pairs, axes)):
 
     Z = clf.predict_proba(np.c_[xx.ravel(), yy.ravel()])[:, 1].reshape(xx.shape)
 
-    ax.contourf(xx, yy, Z, levels=[0, 0.5], colors=["blue"], alpha=0.2)
+    ax.contourf(xx, yy, Z, levels=[0, 0.5], colors=["#4C72B0"], alpha=0.2)
     ax.contourf(xx, yy, Z, levels=[0.5, 1], colors=["yellow"], alpha=0.2)
 
     contours = ax.contour(xx, yy, Z, levels=[0.1, 0.5, 0.9],
-                          colors=["blue", "red", "green"])
+                          colors=["#4C72B0", "red", "green"])
     ax.clabel(contours, fmt="%.1f", fontsize=7)
 
     for label, group in results_df.groupby("label"):
-        color = "green" if label == "Good Weld" else "red"
+        # Use standard matplotlib blue (#1f77b4) and orange (#ff7f0e)
+        color = "#1f77b4" if label == "Good Weld" else "#ff7f0e"
+        display_label = "good weld" if label == "Good Weld" else "bad weld"
         X_group = scaler.transform(group[[feat1, feat2]].values)
-        ax.scatter(X_group[:, 0], X_group[:, 1], color=color, label=label)
+        ax.scatter(X_group[:, 0], X_group[:, 1], color=color,
+                   label=display_label if i == 0 else "_nolegend_")
 
-    ax.set_xlabel(f"{feat1.replace('_', ' ').title()}\n({chr(97+i)})", fontsize=11)
-    ax.set_ylabel(feat2.replace('_', ' ').title(), fontsize=11)
-    ax.legend(frameon=True, framealpha=1, facecolor="white", fontsize=11, markerscale=0.5)
+    # Spelled-out lowercase axis labels
+    xlabel_str = feature_pair_labels[i][0]
+    ylabel_str = feature_pair_labels[i][1]
+    ax.set_xlabel(f"{xlabel_str}\n({chr(97+i)})", fontsize=11)
+    ax.set_ylabel(ylabel_str, fontsize=11)
 
+    # Enforce axis bounds
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+
+# Single legend on the first axis only
+axes[0].legend(
+    frameon=True,
+    framealpha=1,
+    facecolor="white",
+    fontsize=8,
+    markerscale=0.6,
+    handlelength=1.0,
+    handletextpad=0.4,
+    borderpad=0.4,
+    labelspacing=0.3,
+)
 fig.tight_layout()
 
 fig.savefig(
