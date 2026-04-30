@@ -3,7 +3,7 @@ Hardware and software designs for in situ systems for laser-based powder bed fus
 
 
 <p align="center">
-<img src="media/setup_2026.png" alt="drawing" width="400"/> <br> 
+<img src="media/setup_2026.png" alt="drawing" width="800"/> <br> 
 The laser vibrometer setup of in situ systems for laser-based powder bed fusion additive manufacturing.  
 </p>
 <p align="center">
