@@ -35,7 +35,7 @@ Custom cover with event camera mount for in-situ monitoring of laser-based powde
 * Sheffield, England, United Kingdom — a world-renowned center for steel production, known for crucible and stainless steel innovations.
 * Sensing system designed with a laser vibrometer.
 
-<img src="media/Sheffield.JPG" alt="drawing" width="300"/> <br> 
+<img src="media/Sheffield.jpg" alt="drawing" width="300"/> <br> 
 Experimental setup including custom cover assembly, laser vibrometer, piezoelectric transducer, and pulser. 
 </p>
 <p align="center">
