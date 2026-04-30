@@ -1,4 +1,4 @@
-# Mithril
+# Birmingham
 Sensing system designed with an optical camera.
 
 
