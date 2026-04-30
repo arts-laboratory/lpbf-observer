@@ -3,7 +3,7 @@ Hardware and software designs for in situ systems for laser-based powder bed fus
 
 
 <p align="center">
-<img src="media/setup_2026.jpg" alt="drawing" width="400"/> <br> 
+<img src="media/setup_2026.png" alt="drawing" width="400"/> <br> 
 The laser vibrometer setup of in situ systems for laser-based powder bed fusion additive manufacturing.  
 </p>
 <p align="center">
@@ -26,10 +26,10 @@ This work is licensed under a Creative Commons Attribution-ShareAlike 4.0 Intern
 
 @Misc{ARTSLabSituMonitoringPowder,  
   author = {{ARTS-L}ab},  
-  title  = {In situ monitoring of powder bed fusion additive manufacturing},  
+  title  = {{LPBF}-Observer},  
   groups = {{ARTS-L}ab},  
   note = {Accessed: 20xx-xx-xx},  
-  url    = {https://github.com/ARTS-Laboratory/In-situ-monitoring-of-Powder-bed-fusion-additive-manufacturing},  
+  url    = {https://github.com/ARTS-Laboratory/LPBF-Observer},  
 }  
 
 <p align="center">
