@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # Load the LabVIEW file
 #filename = r"C:\Users\mwhetham\Desktop\signal strength data\LayerScanV6 Experiments\Experiment2\point-012-012-"
-filename = r"C:\Users\MADHAMI\Desktop\Vibration Scan B\point-000-000-"
+filename = r"C:\Users\MADHAMI\Desktop\Single Point Scan\Steel Plate\point10"
 with open(filename, 'r') as file:
     lines = file.readlines()
 
@@ -38,4 +38,4 @@ plt.plot(time, signal)
 plt.ylim(bottom=-0.4, top=0.4)
 plt.xlabel("Time (μs)")
 plt.ylabel("Amplitude")
-plt.title("Vibration Scan B no filter")
+#plt.title("___")

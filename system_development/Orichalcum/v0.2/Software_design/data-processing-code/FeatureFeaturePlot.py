@@ -8,7 +8,7 @@ import time
 
 start_time = time.time()
 
-folder_path = r"C:\Users\MADHAMI\Desktop\Signal Scan 2"
+folder_path = r"C:\Users\MADHAMI\Desktop\Vibration Scan 4"
 print(f"\nReading files from:", folder_path)
 #%% label points
 
@@ -36,7 +36,7 @@ for filename in os.listdir(folder_path):
 
             #load data
             data = pd.read_csv(file_path, skiprows=22)
-            signal = data.iloc[:, 2].values
+            signal = data.iloc[:, 1].values # 1 for velocity column, 2 for signal column
 
             # calculate features (RMS, Skew, StDev, Mean, Kurtosis)
             rms = np.sqrt(np.mean(signal**2))
@@ -44,8 +44,8 @@ for filename in os.listdir(folder_path):
             stdv = np.std(signal)
             kurt = kurtosis(signal)
 
-            feature_1.append(rms)
-            feature_2.append(skewness)
+            feature_1.append(skewness)
+            feature_2.append(kurt)
 
             if is_machined(x, y):
                 labels.append("machined")
@@ -53,8 +53,8 @@ for filename in os.listdir(folder_path):
                 labels.append("welded")
 
 #automatic name writing
-feature_1_name = "RMS"
-feature_2_name = "Skewness"
+feature_1_name = "Skewness"
+feature_2_name = "Kurtosis"
 plot_name = f"{feature_1_name} vs {feature_2_name}"
 
 # convert to numpy arrays
