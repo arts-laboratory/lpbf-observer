@@ -34,7 +34,8 @@ plt.rcParams.update({
 
 ff.clear_terminal()
 
-inputPath = r"C:\Users\mayhe\OneDrive\Documents\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Thermal Radiation CSV"
+#inputPath = r"C:\Users\mayhe\OneDrive\Documents\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Thermal Radiation CSV"
+inputPath = r"C:\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Thermal Radiation CSV"
 
 CSVFiles = ff.buildFilePaths(inputPath)
 
@@ -71,8 +72,10 @@ print(results_df)
 
 features = ["mean", "median", "std_dev", "min", "max", "range", "skewness", "kurtosis", "mean_masked"]
 
-os.makedirs(r"C:\Users\mayhe\OneDrive\Documents\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Plots", exist_ok=True)
-outputPath = r"C:\Users\mayhe\OneDrive\Documents\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Plots"
+#os.makedirs(r"C:\Users\mayhe\OneDrive\Documents\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Plots", exist_ok=True)
+#outputPath = r"C:\Users\mayhe\OneDrive\Documents\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Plots"
+os.makedirs(r"C:\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Plots", exist_ok=True)
+outputPath = r"C:\GitHub\Dataset-battery-tab-laser-welding\data\Dataset-1\Plots"
 
 for feat1, feat2 in combinations(features, 2):
     plt.figure()
