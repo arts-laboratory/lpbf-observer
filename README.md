@@ -1,4 +1,4 @@
-# In situ monitoring of powder bed fusion additive manufacturing
+# LPBF-Observer
 Hardware and software designs for in situ systems for laser-based powder bed fusion additive manufacturing.
 
 
