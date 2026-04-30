@@ -12,8 +12,8 @@ The laser vibrometer setup of in situ systems for laser-based powder bed fusion 
 ## [System Development](system_development)
 The system (hardware and software) design for the project.
 
-## [Aconity MIDI – 3D Reference Models](Aconity_MIDI–3D_Reference_Models)
-Simple CAD models for the Aconity MIDI printer used for visualization purposes.
+## [General Use](general_use)
+Basic accessories for the system that can be used with any of the covers.
 
 
 ## Licensing and Citation
