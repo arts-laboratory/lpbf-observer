@@ -3,6 +3,7 @@ import optris.otcsdk as otc
 import os
 import numpy as np
 import datetime
+import time
 
 
 def clear_terminal():
@@ -29,6 +30,7 @@ class CameraClient(otc.IRImagerClient):
         self._imager.addClient(self)
         self.recording = False
         self.recorded_frames = []   # RAM buffer: list of float32 temp maps
+        self.recorded_timestamps = []
         self._latest_frame = None
         self._frame_updated = False
         self._builder = otc.ImageBuilder(
@@ -44,14 +46,18 @@ class CameraClient(otc.IRImagerClient):
             frame = self._latest_frame.thermalFrame
             h = frame.getHeight()
             w = frame.getWidth()
+
             # copyTemperaturesTo writes into a flat float32 array
             temp_flat = np.empty(h * w, dtype=np.float32)
             frame.copyTemperaturesTo(temp_flat)
+            
             self.recorded_frames.append(temp_flat.reshape(h, w))
+            self.recorded_timestamps.append(time.perf_counter_ns())
 
     def start_recording(self):
         """Clear the buffer and begin capturing thermal frames into RAM."""
         self.recorded_frames = []
+        self.recorded_timestamps = []
         self.recording = True
         print("Recording started.")
 
@@ -74,6 +80,7 @@ class CameraClient(otc.IRImagerClient):
         np.savez_compressed(
             path,
             frames=stack,
+            frame_timestamps_ns=np.array(self.recorded_timestamps, dtype=np.int64),
             timestamp=np.array(datetime.datetime.now().isoformat())
         )
         print(f"Saved {stack.shape[0]} frames → {path}")

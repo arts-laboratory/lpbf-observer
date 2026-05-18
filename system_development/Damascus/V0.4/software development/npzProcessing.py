@@ -1,4 +1,5 @@
 import functionFIles as bruh
+from pytictoc import TicToc
 
 bruh.clear_terminal()
 
@@ -8,7 +9,14 @@ outputPathCSV = r"C:\Users\mayhe\OneDrive\Documents\GitHub\Dataset-battery-tab-l
 
 fileNames = bruh.gimmeFileNames(inputPath)
 filePaths = bruh.buildFilePaths(inputPath)
+t = TicToc()
+
+t.tic()
 
 for i, path in enumerate(filePaths):
-    bruh.saveVideo(filePaths[i], fileNames[i], outputPath)
+    print("" + "-"*50)
+    frameIndex = bruh.saveVideo(filePaths[i], fileNames[i], outputPath)
+    bruh.saveCSV(filePaths[i], fileNames[i], outputPathCSV, frameIndex)
 
+t.toc()
+print("All done!")
