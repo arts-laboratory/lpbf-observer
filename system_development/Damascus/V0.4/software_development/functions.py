@@ -116,7 +116,7 @@ def seePreview(client, imager, stopFeed):
     lambda x: imager.setFocusMotorPosition(x)
     )
 
-    while stopFeed.is_set: 
+    while not stopFeed.is_set(): 
         image = client.getImage()
 
         if image is not None:
@@ -153,12 +153,12 @@ def runSocketServer(client, HOST, PORT, stopFeed, imager):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.bind((HOST, PORT))
         server.listen(1)
-        print(f"        [SocketServer] Listening on {HOST}:{PORT}")
+        print(f"       [SocketServer] Listening on {HOST}:{PORT}")
         running = True
 
         while running:
             connect, address = server.accept()
-            print("        [SocketServer] \033[32m" + "Successfully connected to: " + "\033[0m" + str(address))
+            print("        [SocketServer]" + "Successfully connected to: " + str(address))
             while True:
                 dataRec = connect.recv(1024)
                 clientInput = dataRec.decode().strip().lower()
@@ -171,6 +171,7 @@ def runSocketServer(client, HOST, PORT, stopFeed, imager):
                     break
                 elif 'focus ' in clientInput:
                     focusInput = dataRec
+
                     adjustFocus(focusInput, imager, connect)
                 elif clientInput == 'flag':
                     forceFlag(imager, client, connect)
@@ -187,16 +188,16 @@ def startRecord(client, connect):
 
 def stopRecord(client, connect):
     if client.recording:
-        connect.sendall(b'Stopped and saved recording.')
+        connect.sendall(b'Stopped and saved recording.\n')
         client.stop_recording()
         client.save_recording()   # saves thermal_YYYYMMDD_HHMMSS.npz
     else:
-        connect.sendall(b'Not currently recording.')
+        connect.sendall(b'Not currently recording.\n')
         print("Not currently recording.")
 
 def quitProgram(client, connect, stopFeed):
     if client.recording:
-        connect.sendall(b'Quitting program.')
+        connect.sendall(b'Quitting program.\n')
         client.stop_recording()
         stopFeed.set()
         connect.close()
@@ -204,18 +205,23 @@ def quitProgram(client, connect, stopFeed):
         stopFeed.set()
         
 def unknownCommand(connect):
-    connect.sendall(b'Unknown command.')
+    connect.sendall(b'Unknown command.\n')
 
 def adjustFocus(dataRec, imager, connect):
     focusInput = (dataRec.decode().strip().lower()).split(' ')
     previousFocus = imager.getFocusMotorPosition()
+
+    if not isinstance(focusInput[1], float):
+        connect.sendall(b"Invalid focus command.\n")
+
     newFocus = float(focusInput[1])
 
     if len(focusInput) == 1 or newFocus == None:
         connect.sendall(b'Missing focus value. Ex. "focus 22"\n')
     
     if newFocus > 100 and newFocus < 0:
-        connect.sendall(b'Focus values must be within 0 and 100')
+        connect.sendall(b'Focus values must be within 0 and 100\n')
+
     
     imager.setFocusMotorPosition(newFocus)
     focusMessage = f"Focus changed from {previousFocus} to {newFocus}.\n"
@@ -223,10 +229,10 @@ def adjustFocus(dataRec, imager, connect):
 
 def forceFlag(imager, client, connect):
     if client.recording:
-        connect.sendall(b'Currently recording, cannot force flag.')
+        connect.sendall(b'Currently recording, cannot force flag.\n')
     
     imager.forceFlagEvent(0)
-    connect.sendall(b'Forcing flag event.')
+    connect.sendall(b'Forcing flag event.\n')
 
 
 
