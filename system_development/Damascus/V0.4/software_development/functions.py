@@ -4,7 +4,12 @@ import os
 import numpy as np
 import datetime
 import time
+import cv2
+import socket
+from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
+outputPath = BASE_DIR / "Recordings"
 
 def clear_terminal():
     if os.name == 'nt':
@@ -68,13 +73,14 @@ class CameraClient(otc.IRImagerClient):
         print(f"Recording stopped. {len(frames)} frames captured.")
         return frames
 
-    def save_recording(self, save_dir=r"C:\Users\mayhe\OneDrive\Documents\GitHub\In-situ-monitoring-of-powder-bed-fusion-additive-manufacturing\system_development\Damascus\V0.4\software development\Recordings"):
+    def save_recording(self, save_dir=outputPath):
         if not self.recorded_frames:
             print("No frames to save.")
             return None
 
+        fileCount = len([f for f in save_dir.iterdir() if f.is_file()])
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = os.path.join(save_dir, f"thermal_{ts}.npz")
+        path = os.path.join(save_dir, f"thermalRun{fileCount}_{ts}.npz")
         
         stack = np.stack(self.recorded_frames, axis=0)
         np.savez_compressed(
@@ -99,3 +105,132 @@ class CameraClient(otc.IRImagerClient):
         self._builder.copyImageDataTo(image)
         self._frame_updated = False
         return image
+
+def seePreview(client, imager, stopFeed):
+    imager.runAsync()
+
+    cv2.namedWindow('Thermal Camera')
+    cv2.createTrackbar(
+    'Focus', 'Thermal Camera',
+    int(imager.getFocusMotorPosition()), 100,
+    lambda x: imager.setFocusMotorPosition(x)
+    )
+
+    while stopFeed.is_set: 
+        image = client.getImage()
+
+        if image is not None:
+            if client.recording:
+                n = len(client.recorded_frames)
+                cv2.circle(image, (12, 12), 8, (0, 0, 220), -1)
+                cv2.putText(image, f"REC {n}", (24, 17),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 220), 1, cv2.LINE_AA)
+
+            cv2.imshow('Thermal Camera ("q" to quit)', image)
+        
+        key = cv2.waitKey(1) & 0xFF
+
+        if key == ord('r'):
+            if not client.recording:
+                client.start_recording()
+            else:
+                print("Already recording — press s to stop.")
+
+        elif key == ord('s'):
+            if client.recording:
+                client.stop_recording()
+                client.save_recording()   # saves thermal_YYYYMMDD_HHMMSS.npz
+            else:
+                print("Not currently recording.")
+
+        elif key == ord('q') or stopFeed.is_set():
+            if client.recording:
+                client.stop_recording()
+            break
+
+
+def runSocketServer(client, HOST, PORT, stopFeed, imager):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        server.bind((HOST, PORT))
+        server.listen(1)
+        print(f"        [SocketServer] Listening on {HOST}:{PORT}")
+        running = True
+
+        while running:
+            connect, address = server.accept()
+            print("        [SocketServer] \033[32m" + "Successfully connected to: " + "\033[0m" + str(address))
+            while True:
+                dataRec = connect.recv(1024)
+                clientInput = dataRec.decode().strip().lower()
+                if clientInput == 'record':
+                    startRecord(client, connect)
+                elif clientInput == 'stop':
+                    stopRecord(client, connect)
+                elif clientInput == 'quit':
+                    quitProgram(client, connect, stopFeed)
+                    break
+                elif 'focus ' in clientInput:
+                    focusInput = dataRec
+                    adjustFocus(focusInput, imager, connect)
+                elif clientInput == 'flag':
+                    forceFlag(imager, client, connect)
+                else:
+                    unknownCommand(connect)
+        
+def startRecord(client, connect):
+    if not client.recording:
+        connect.sendall(b'Recording started\n')
+        client.start_recording()
+    else:
+        connect.sendall(b'Already recording. Press s to stop.\n')
+        print("Already recording — press s to stop.")
+
+def stopRecord(client, connect):
+    if client.recording:
+        connect.sendall(b'Stopped and saved recording.')
+        client.stop_recording()
+        client.save_recording()   # saves thermal_YYYYMMDD_HHMMSS.npz
+    else:
+        connect.sendall(b'Not currently recording.')
+        print("Not currently recording.")
+
+def quitProgram(client, connect, stopFeed):
+    if client.recording:
+        connect.sendall(b'Quitting program.')
+        client.stop_recording()
+        stopFeed.set()
+        connect.close()
+    else:
+        stopFeed.set()
+        
+def unknownCommand(connect):
+    connect.sendall(b'Unknown command.')
+
+def adjustFocus(dataRec, imager, connect):
+    focusInput = (dataRec.decode().strip().lower()).split(' ')
+    previousFocus = imager.getFocusMotorPosition()
+    newFocus = float(focusInput[1])
+
+    if len(focusInput) == 1 or newFocus == None:
+        connect.sendall(b'Missing focus value. Ex. "focus 22"\n')
+    
+    if newFocus > 100 and newFocus < 0:
+        connect.sendall(b'Focus values must be within 0 and 100')
+    
+    imager.setFocusMotorPosition(newFocus)
+    focusMessage = f"Focus changed from {previousFocus} to {newFocus}.\n"
+    connect.sendall(focusMessage.encode())
+
+def forceFlag(imager, client, connect):
+    if client.recording:
+        connect.sendall(b'Currently recording, cannot force flag.')
+    
+    imager.forceFlagEvent(0)
+    connect.sendall(b'Forcing flag event.')
+
+
+
+
+
+
+
