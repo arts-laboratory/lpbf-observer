@@ -93,67 +93,92 @@ class CameraClient(otc.IRImagerClient):
         return path
 
     def getImage(self):
-        """Return the latest BGR false-colour preview image, or None if not ready."""
         if self._latest_frame is None or not self._frame_updated:
             return None
-        self._builder.setThermalFrame(thermalFrame=self._latest_frame.thermalFrame)
-        self._builder.convertTemperatureToPaletteImage()
-        image = np.empty(
-            (self._builder.getHeight(), self._builder.getWidth(), 3),
-            dtype=np.uint8
-        )
-        self._builder.copyImageDataTo(image)
+        
+        frame = self._latest_frame.thermalFrame
+        h = frame.getHeight()
+        w = frame.getWidth()
+        
+        temp_flat = np.empty(h * w, dtype=np.float32)
+        frame.copyTemperaturesTo(temp_flat)
+        temp_map = temp_flat.reshape(h, w)
+        
+        lo, hi = temp_map.min(), temp_map.max()
+        normalized = ((temp_map - lo) / (hi - lo) * 255).astype(np.uint8)
+        image = cv2.applyColorMap(normalized, cv2.COLORMAP_INFERNO)
+        
         self._frame_updated = False
         return image
-
-def seePreview(client, imager, stopFeed):
-    imager.runAsync()
-
-    cv2.namedWindow('Thermal Camera')
-    cv2.createTrackbar(
-    'Focus', 'Thermal Camera',
-    int(imager.getFocusMotorPosition()), 100,
-    lambda x: imager.setFocusMotorPosition(x)
-    )
-
-    while not stopFeed.is_set(): 
-        image = client.getImage()
-
-        if image is not None:
-            if client.recording:
-                n = len(client.recorded_frames)
-                cv2.circle(image, (12, 12), 8, (0, 0, 220), -1)
-                cv2.putText(image, f"REC {n}", (24, 17),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 220), 1, cv2.LINE_AA)
-
-            cv2.imshow('Thermal Camera ("q" to quit)', image)
+    
+    def getImageInfo(self):        # <-- add it here
+        while self._latest_frame is None:
+            time.sleep(0.01)
         
-        key = cv2.waitKey(1) & 0xFF
+        frame = self._latest_frame.thermalFrame
+        h = frame.getHeight()
+        w = frame.getWidth()
+        
+        temp_flat = np.empty(h * w, dtype=np.float32)
+        frame.copyTemperaturesTo(temp_flat)
+        temp_map = temp_flat.reshape(h, w)
 
-        if key == ord('r'):
-            if not client.recording:
-                client.start_recording()
-            else:
-                print("Already recording — press s to stop.")
+        return {
+            "width":    w,
+            "height":   h,
+            "channels": 1,
+            "dtype":    str(temp_map.dtype),
+            "size_bytes": h * w * 3
+        }
 
-        elif key == ord('s'):
-            if client.recording:
-                client.stop_recording()
-                client.save_recording()   # saves thermal_YYYYMMDD_HHMMSS.npz
-            else:
-                print("Not currently recording.")
+def seePreview(client, imager, stopFeed, HOST, videoPort):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        server.bind((HOST, videoPort))
+        server.listen(1)
+        print(f"       [SocketServer] Listening on {HOST}:{videoPort}")
+        
+        imager.runAsync()
 
-        elif key == ord('q') or stopFeed.is_set():
-            if client.recording:
-                client.stop_recording()
-            break
+        cv2.namedWindow('Thermal Camera')
+        cv2.createTrackbar(
+        'Focus', 'Thermal Camera',
+        int(imager.getFocusMotorPosition()), 100,
+        lambda x: imager.setFocusMotorPosition(x)
+        )
+
+        VideoConnect = None
+
+        while not stopFeed.is_set(): 
+            if VideoConnect is None:
+                try:
+                    VideoConnect, address = server.accept()
+                    print(f"       [VideoServer] Client connected: {address}")
+                except socket.timeout:
+                    pass
+
+            image = client.getImage()
+
+            
+
+            if image is not None:
+                placeRecSymbol(image, client)
+                cv2.imshow('Thermal Camera ("q" to quit)', image)
+            
+            info = client.getImageInfo()
+
+            key = cv2.waitKey(1) & 0xFF
+
+            if key == ord('q') or stopFeed.is_set():
+                if client.recording:
+                    client.stop_recording()
+                break
 
 
 def runSocketServer(client, HOST, PORT, stopFeed, imager):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.bind((HOST, PORT))
         server.listen(1)
-        print(f"       [SocketServer] Listening on {HOST}:{PORT}")
+        print(f"       [SocketServer] Listening for commands on {HOST}:{PORT}")
         running = True
 
         while running:
@@ -234,9 +259,29 @@ def forceFlag(imager, client, connect):
     imager.forceFlagEvent(0)
     connect.sendall(b'Forcing flag event.\n')
 
+def getImageInfo(client):
+    image = client.getImage()
 
+    if image is None:
+        print("No image available.")
+        return None
+    
+    h, w, channels = image.shape
+    info = {
+        "width":    w,
+        "height":   h,
+        "channels": channels,
+        "dtype":    str(image.dtype),
+        "size_kb":  round(image.nbytes / 1024, 2)
+    }
+    return info
 
-
+def placeRecSymbol(image, client):
+    if client.recording:
+        n = len(client.recorded_frames)
+        cv2.circle(image, (12, 12), 8, (0, 0, 220), -1)
+        cv2.putText(image, f"REC {n}", (24, 17),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 220), 1, cv2.LINE_AA)
 
 
 
