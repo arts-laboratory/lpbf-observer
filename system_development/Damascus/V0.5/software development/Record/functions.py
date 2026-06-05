@@ -142,10 +142,10 @@ def sendPreview(client, imager, stopFeed, HOST, PORT):
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((HOST, PORT))
         server.listen(1)
-        print(f"[VideoServer] Listening on {HOST}:{PORT}", flush=True)
+        print(f"        [VideoServer] Listening on {HOST}:{PORT}", flush=True)
 
         conn, addr = server.accept()
-        print(f"[VideoServer] Connected to {addr}", flush=True)
+        print(f"        [VideoServer] Connected to {addr}", flush=True)
 
         imager.runAsync()
 
@@ -168,7 +168,7 @@ def runSocketServer(client, HOST, PORT, stopFeed, imager):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.bind((HOST, PORT))
         server.listen(1)
-        print(f"       [SocketServer] Listening for commands on {HOST}:{PORT}")
+        print(f"        [SocketServer] Listening for commands on {HOST}:{PORT}")
         running = True
 
         while running:
