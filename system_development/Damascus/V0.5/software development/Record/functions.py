@@ -7,6 +7,7 @@ import time
 import cv2
 import socket
 from pathlib import Path
+import struct
 
 BASE_DIR = Path(__file__).resolve().parent
 outputPath = BASE_DIR / "Recordings"
@@ -111,46 +112,57 @@ class CameraClient(otc.IRImagerClient):
         self._frame_updated = False
         return image
     
-    def getImageInfo(self):        # <-- add it here
-        while self._latest_frame is None:
-            time.sleep(0.01)
-        
+    def getImageInfo(self):
+        if self._latest_frame is None:
+            return None
+
         frame = self._latest_frame.thermalFrame
         h = frame.getHeight()
         w = frame.getWidth()
-        
+
         temp_flat = np.empty(h * w, dtype=np.float32)
         frame.copyTemperaturesTo(temp_flat)
         temp_map = temp_flat.reshape(h, w)
 
         return {
-            "width":    w,
-            "height":   h,
+            "width": w,
+            "height": h,
             "channels": 1,
-            "dtype":    str(temp_map.dtype),
-            "size_bytes": h * w * 3
+            "dtype": str(temp_map.dtype),
+            "size_bytes": int(temp_map.nbytes),
+
+            "min_temp": float(np.nanmin(temp_map)),
+            "max_temp": float(np.nanmax(temp_map)),
+            "avg_temp": float(np.nanmean(temp_map)),
+            "std_temp": float(np.nanstd(temp_map))
         }
 
-def seePreview(client, imager, stopFeed):
-    imager.runAsync()
-    while stopFeed.is_set: 
-        image = client.getImage()
+def sendPreview(client, imager, stopFeed, HOST, PORT):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((HOST, PORT))
+        server.listen(1)
+        print(f"[VideoServer] Listening on {HOST}:{PORT}", flush=True)
 
-        if image is not None:
-            if client.recording:
-                n = len(client.recorded_frames)
-                cv2.circle(image, (12, 12), 8, (0, 0, 220), -1)
-                cv2.putText(image, f"REC {n}", (24, 17),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 220), 1, cv2.LINE_AA)
+        conn, addr = server.accept()
+        print(f"[VideoServer] Connected to {addr}", flush=True)
 
-            cv2.imshow('Thermal Camera ("q" to quit)', image)
-        
-        key = cv2.waitKey(1) & 0xFF
+        imager.runAsync()
 
-        if key == ord('q') or stopFeed.is_set():
-            if client.recording:
-                client.stop_recording()
-            break
+        while not stopFeed.is_set():
+            image = client.getImage()
+            if image is None:
+                time.sleep(0.001)
+                continue
+
+            ok, jpg = cv2.imencode(".jpg", image)
+            if not ok:
+                continue
+
+            payload = jpg.tobytes()
+
+            conn.sendall(struct.pack(">I", len(payload)))
+            conn.sendall(payload)
 
 def runSocketServer(client, HOST, PORT, stopFeed, imager):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -236,23 +248,6 @@ def forceFlag(imager, client, connect):
     
     imager.forceFlagEvent(0)
     connect.sendall(b'Forcing flag event.\n')
-
-def getImageInfo(client):
-    image = client.getImage()
-
-    if image is None:
-        print("No image available.")
-        return None
-    
-    h, w, channels = image.shape
-    info = {
-        "width":    w,
-        "height":   h,
-        "channels": channels,
-        "dtype":    str(image.dtype),
-        "size_kb":  round(image.nbytes / 1024, 2)
-    }
-    return info
 
 def placeRecSymbol(image, client):
     if client.recording:
