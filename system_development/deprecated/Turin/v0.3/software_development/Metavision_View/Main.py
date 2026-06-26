@@ -13,7 +13,7 @@ def clean(cleaner):
      return cleaner
      
 
-mv_viewer_location = 'C:\\Users\\CBUREN\\Documents\\GitHub\\openeb\\build\\sdk\\modules\\stream\\cpp\\samples\\metavision_viewer'
+mv_viewer_location = r'C:\Users\THIENAN\Documents\GitHub\In-situ-monitoring-of-powder-bed-fusion-additive-manufacturing\system_development\deprecated\Turin\v0.3\metavision_executables'
 os.chdir(mv_viewer_location)
 print("New directory: ", os.getcwd())
 
